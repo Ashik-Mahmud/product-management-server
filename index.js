@@ -144,9 +144,7 @@ async function run(){
       })
 
             
-    }finally{
-        // client.close();
-    }
+    }finally{}
 }
 
 run().catch(console.dir)
