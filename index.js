@@ -1,5 +1,6 @@
 /* init server  */
 const { MongoClient, ObjectId } = require('mongodb');
+var jwt = require('jsonwebtoken');
 const express = require('express');
 const cors = require('cors');
 const app = express();
@@ -22,6 +23,27 @@ app.get("/", (req, res) =>{
 
 
 
+/* Verify JWT */
+function VerifyJWT(req, res, next){
+    const authHeader = req.headers.authorization;
+    if(!authHeader){
+        return res.status(401).send({message: "Unauthorized user"})
+    }
+
+    const token = authHeader.split(" ")[1];
+    // invalid token
+    jwt.verify(token, process.env.ACCESS_TOKEN, function(err, decoded) {
+        if(err){
+            return res.status(403).send({message: "Forbidden Request"})
+        }
+        req.decoded = decoded;
+        next();
+    });
+
+    
+}
+
+
 const uri = `mongodb+srv://${process.env.PRODUCT_USER}:${process.env.PRODUCT_PASS}@cluster0.fykr4.mongodb.net/myFirstDatabase?retryWrites=true&w=majority`;
 const client = new MongoClient(uri);
 
@@ -37,11 +59,11 @@ async function run(){
            res.send(result)
        })
        /* GET DATA FROM MONGODB */
-       app.get("/products", async(req, res) => {
-           const query = {};
-           const result = await productCollection.find(query);
-           const productData = await result.toArray();
-           res.send(productData)
+       app.get("/products",   async(req, res) => { 
+            const query = {};
+            const result = await productCollection.find(query);
+            const productData = await result.toArray();
+            res.send(productData)
        })
 
        /* SEARCH DATA FROM MONGODB */
@@ -85,6 +107,42 @@ async function run(){
        })
 
 
+       /* SEND ORDER DATA IN MONGODB */
+       const orderCollection = client.db("orders-db").collection("orders");
+       app.post("/order", async(req, res) => {
+           const orderBody = req.body;
+           const result = await orderCollection.insertOne(orderBody);
+           res.send(result)
+           
+       })
+
+       /* GET ORDER DATA FROM MONGODB  */
+       app.get("/order", VerifyJWT, async(req, res) =>{
+           const uid = req.query.uid;
+           const decodedUid = req.decoded;
+           if(decodedUid.uid === uid){
+            const query =  {uid: uid}
+            const result = orderCollection.find(query);
+            const orderData = await result.toArray();
+            res.send(orderData)
+           }else{
+               res.status(403).send({message: "Forbidden Request"});
+           }
+                     
+       })
+
+
+      /*  LOGIN  */
+      app.post("/login", async(req, res) => {
+          const userInfo = req.body;
+          const accessToken = jwt.sign(userInfo, process.env.ACCESS_TOKEN, {
+              expiresIn: '1d'
+          })
+
+          res.send({accessToken})
+          
+      })
+
             
     }finally{
         // client.close();
@@ -92,11 +150,6 @@ async function run(){
 }
 
 run().catch(console.dir)
-
-
-
-
-
 
 
 
